@@ -1,5 +1,6 @@
 import zmq
 import numpy as np
+from numpy import pi
 import socket
 import struct
 import pickle
@@ -86,6 +87,23 @@ def vehicle_connect():
 		is_vehicle_connected = True
 		return True
 
+def turn(deg):
+	if is_vehicle_connected == True:
+		msg = vehicle.message_factory.set_position_target_local_ned_encode(
+			0,       # time_boot_ms (not used)
+			0, 0,    # target system, target component
+			mavutil.mavlink.MAV_FRAME_BODY_NED, # frame
+			0b0000101111111111, # type_mask (only speeds enabled)
+			0, 0, 0, # x, y, z positions (not used)
+			0, 0, 0, # x, y, z velocity in m/s
+			0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
+			deg*pi/180.0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
+
+		vehicle.send_mavlink(msg)
+		# vehicle.flush()
+	else:
+		print("INFO: Vehicle not connected.")
+
 
 # Connect to the Vehicle
 #vehicle = connect('/dev/ttyTHS0', wait_ready=True, baud=921600)
@@ -125,6 +143,7 @@ obstacle_distance_msg_hz = 15.0
 # send_msg_to_gcs('Sending obstacle distance messages to FCU')
 
 last_time = time.time()
+current_mode = 'MANUAL'
 
 while True:
 
@@ -142,31 +161,73 @@ while True:
 		if parse_data.startswith('MANUAL'):
 			print(parse_data)
 			vehicle.mode = 'MANUAL'
+			current_mode = 'MANUAL'
+
 		elif parse_data.startswith('HOLD'):
 			print(parse_data)
 			vehicle.mode = 'HOLD'
-		elif parse_data.startswith('TURNLEFT'):
+			current_mode = 'HOLD'
+
+		elif parse_data.startswith('TURNLEFT45'):
 			print(parse_data)
-			vehicle.channels.overrides['1'] = 1300
-			vehicle.channels.overrides['2'] = 1500
-		elif parse_data.startswith('TURNRIGHT'):
+			if current_mode != 'GUIDED':
+				vehicle.mode = 'GUIDED'
+				current_mode = 'GUIDED'
+			turn(-45)
+
+		elif parse_data.startswith('TURNLEFT90'):
 			print(parse_data)
-			vehicle.channels.overrides['1'] = 1700
-			vehicle.channels.overrides['2'] = 1500
+			if current_mode != 'GUIDED':
+				vehicle.mode = 'GUIDED'
+				current_mode = 'GUIDED'
+			turn(-90)
+
+		elif parse_data.startswith('TURNRIGHT45'):
+			print(parse_data)
+			if current_mode != 'GUIDED':
+				vehicle.mode = 'GUIDED'
+				current_mode = 'GUIDED'
+			turn(45)
+
+		elif parse_data.startswith('TURNRIGHT90'):
+			print(parse_data)
+			if current_mode != 'GUIDED':
+				vehicle.mode = 'GUIDED'
+				current_mode = 'GUIDED'
+			turn(90)
+
+		elif parse_data.startswith('TURN180'):
+			print(parse_data)
+			if current_mode != 'GUIDED':
+				vehicle.mode = 'GUIDED'
+				current_mode = 'GUIDED'
+			turn(180)
+		
+		elif parse_data.startswith('ARMDISARM'):
+			print(parse_data)
+			if vehicle.armed == True:
+				vehicle.armed= False
+			else:
+				vehicle.armed = True
+
 		elif parse_data.startswith('STR'):
 			print(parse_data)
-			try:
-				pieces = parse_data.split(':')
-				STR_val = (-1)*float(pieces[1])
-				THR_val = float(pieces[3])
-				print(STR_val, THR_val)
-				#val = float(pieces[1])
-				#sbus_throttle = int(round(670 * val + 1024))
-				steering_pwm = int(round(STR_val*200 + 1500))
-				throttle_pwm = int(round(THR_val*200 + 1500))
-				#print("throttle_pwm", throttle_pwm)
-			except Exception as ee:
-				print('failed to parse  :', ee)
+			if current_mode != 'MANUAL':
+				print("current_mode is not MANUAL!")
+				continue
 			else:
-				vehicle.channels.overrides['1'] = steering_pwm
-				vehicle.channels.overrides['2'] = throttle_pwm
+				try:
+					pieces = parse_data.split(':')
+					STR_val = (-1)*float(pieces[1])
+					THR_val = float(pieces[3])
+					print(STR_val, THR_val)
+					#val = float(pieces[1])
+					#sbus_throttle = int(round(670 * val + 1024))
+					steering_pwm = int(round(STR_val*200 + 1500))
+					throttle_pwm = int(round(THR_val*200 + 1500))
+					#print("throttle_pwm", throttle_pwm)
+				except Exception as ee:
+					print('failed to parse  :', ee)
+				else:
+					vehicle.channels.overrides['1'] = steering_pwm
+					vehicle.channels.overrides['2'] = throttle_pwm

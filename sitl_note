@@ -1,0 +1,20 @@
+terminal1
+mavproxy.py --master tcp:127.0.0.1:5760 --sitl 127.0.0.1:5501 --out 127.0.0.1:14550 --out 127.0.0.1:14551
+
+terminal2
+dronekit-sitl rover
+
+terminal3
+our python script with udp:127.0.0.1:14551 connect_string
+
+OR
+on ardupilot/Tools/autotest directory
+
+sim_vehicle.py -v Rover -f rover-skid --map --console
+
+send specific MAVLink message
+on MAVProxy console
+	module load message
+
+	e.g. message SET_POSITION_TARGET_LOCAL_NED 0 0 0 0 ....
+
